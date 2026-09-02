@@ -1,0 +1,16 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+# 入力原稿と出力（著作物を含みうるのでコミットしない）
+*.tif
+*.tiff
+*.pbm
+out/
+mild/
+vec/
+test_scan.jpg
+test_hard.jpg
+test_spread.jpg

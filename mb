@@ -1,0 +1,8 @@
+#!/bin/sh
+# .venv があればそれを、無ければ python3 を使って manga_binarize.py を実行する。
+#   python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
+here=$(cd "$(dirname "$0")" && pwd)
+if [ -x "$here/.venv/bin/python" ]; then
+  exec "$here/.venv/bin/python" "$here/manga_binarize.py" "$@"
+fi
+exec python3 "$here/manga_binarize.py" "$@"
