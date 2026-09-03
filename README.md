@@ -78,6 +78,20 @@ manga-binarize --help
 
 ## 🚀 クイックスタート & 逆引きレシピ集
 
+### 0. 同梱のサンプル画像ですぐ試す（おすすめ）
+リポジトリ内の `samples/` ディレクトリに、著作権フリーな人工漫画スキャン画像が同梱されています。クローン後すぐに動作を確認できます：
+
+```sh
+# 単ページの2値化
+./mb samples/sample_page.jpg -o out.png --dpi 600
+
+# 見開き画像を左右2ページに自動分割 & 白余白トリム
+./mb samples/sample_spread.jpg -O out/ --split --trim --dpi 600
+
+# 設定の効き比べシート（8種類）をタイル状に生成
+./mb samples/sample_page.jpg --compare cmp.png
+```
+
 ### 1. 基本の1枚変換
 ```sh
 ./mb 原稿.tif -o 原稿_bw.png
@@ -271,11 +285,12 @@ git clone https://github.com/YosAwed/manga-scan-binarize.git
 cd manga-scan-binarize
 python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
 
-# Binarize a spread, split into pages, trim margins, and output PBM for potrace:
-./mb spread.jpg -O out/ --split --trim --round-dots --format pbm
+# Try with bundled royalty-free sample images:
+./mb samples/sample_page.jpg -o out.png --dpi 600
+./mb samples/sample_spread.jpg -O out/ --split --trim --round-dots --format pbm
 
 # Vectorize with potrace:
-potrace -s -t 2 -a 1.3 -O 0.4 out/spread_r_bw.pbm -o out/spread_r.svg
+potrace -s -t 2 -a 1.3 -O 0.4 out/sample_spread_r_bw.pbm -o out/sample_spread_r.svg
 ```
 
 ---
