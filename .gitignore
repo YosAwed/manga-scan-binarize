@@ -4,7 +4,7 @@ __pycache__/
 *.pyc
 .DS_Store
 
-# 入力原稿と出力（著作物を含みうるのでコミットしない）
+# 入力原稿と出力画像（著作物・テスト生成物を含みうるためコミットしない）
 *.tif
 *.tiff
 *.pbm
@@ -14,3 +14,18 @@ vec/
 test_scan.jpg
 test_hard.jpg
 test_spread.jpg
+out.png
+cmp.png
+test_*.png
+*.svg
+
+# ビルド・パッケージング成果物
+dist/
+build/
+*.egg-info/
+*.egg
+
+# IDE / テスト
+.pytest_cache/
+.vscode/
+.idea/
