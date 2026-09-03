@@ -19,8 +19,11 @@ manga_binarize.py -- 漫画スキャンの高品質2値化（網点をそのま�
 """
 
 import argparse
-import sys
 from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
 
 import cv2
 import numpy as np
@@ -364,9 +367,47 @@ def binarize(gray, a, dpi):
     return bw
 
 
-def save_bilevel(bw, path, dpi, fmt=None):
+def save_svg(bw, path, dpi, potrace_args=None):
+    """potrace を呼び出して 1-bit 二値化画像を直接 SVG に変換・保存する。"""
+    potrace_bin = shutil.which("potrace")
+    if not potrace_bin:
+        raise RuntimeError(
+            "potrace が見つかりません。直接 SVG を出力するには potrace が必要です。\n"
+            "  macOS: brew install potrace\n"
+            "  Ubuntu/Debian: sudo apt install potrace\n"
+            "※ 代わりに --format pbm で出力し、後から potrace に渡すことも可能です。"
+        )
+    # デフォルトの推奨軽量化パラメータ: -s -t 2 -a 1.3 -O 0.4
+    if potrace_args is None:
+        cmd = [potrace_bin, "-s", "-t", "2", "-a", "1.3", "-O", "0.4"]
+    else:
+        cmd = [potrace_bin, "-s"] + potrace_args
+
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(suffix=".pbm", delete=False) as tmp:
+        tmp_path = Path(tmp.name)
+    try:
+        if HAVE_PIL:
+            Image.fromarray(bw).convert("1").save(str(tmp_path))
+        else:
+            cv2.imencode(".pbm", bw)[1].tofile(str(tmp_path))
+
+        cmd += [str(tmp_path), "-o", str(path)]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        if res.returncode != 0:
+            raise RuntimeError(f"potrace の実行に失敗しました: {res.stderr}")
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink()
+
+
+def save_bilevel(bw, path, dpi, fmt=None, potrace_args=None):
     path = Path(path)
     fmt = (fmt or path.suffix.lstrip(".")).lower()
+    if fmt == "svg":
+        save_svg(bw, path, dpi, potrace_args)
+        return
     if HAVE_PIL:
         im = Image.fromarray(bw).convert("1")
         if fmt in ("tif", "tiff"):
@@ -377,6 +418,7 @@ def save_bilevel(bw, path, dpi, fmt=None):
             im.save(str(path), dpi=(dpi, dpi), optimize=True, bits=1)
     else:                                    # PIL が無ければ 8bit で保存
         cv2.imencode("." + fmt, bw)[1].tofile(str(path))
+
 
 
 # ---------------------------------------------------------------- compare
@@ -439,10 +481,15 @@ def main():
     p.add_argument("-o", "--output", help="出力ファイル（入力1枚のとき）")
     p.add_argument("-O", "--outdir", help="出力ディレクトリ（複数枚のとき）")
     p.add_argument("--suffix", default="_bw", help="出力ファイル名に付ける接尾辞")
-    p.add_argument("--format", default="png",
-                   help="出力形式 png / tif(G4圧縮) / pbm(potrace が直接読める)")
+    p.add_argument("--format", default="png", choices=["png", "tif", "tiff", "pbm", "svg"],
+                   help="出力形式 png / tif(G4圧縮) / pbm(potrace 直接) / svg(potrace 連携)")
+    p.add_argument("--svg", action="store_true",
+                   help="直接 SVG 形式で出力する（potrace を自動実行）")
+    p.add_argument("--potrace-args",
+                   help="potrace に渡す追加引数（例: '-t 3 -a 1.0 -O 0.2'）")
     p.add_argument("--dpi", type=float, default=0,
                    help="解像度。0ならファイルから読み、無ければ600とみなす")
+
 
     p.add_argument("--method", default="otsu", choices=["otsu", "sauvola", "fixed"],
                    help="しきい値の方式。地色補正後は otsu が網点を最も忠実に残す。"
@@ -516,6 +563,17 @@ def main():
             else:
                 pages = [(tag, trim_margins(g) if a.trim else g) for tag, g in sp]
 
+        # フォーマットの解決
+        fmt = a.format.lower()
+        if a.svg:
+            fmt = "svg"
+        elif a.output and Path(a.output).suffix:
+            ext = Path(a.output).suffix.lstrip(".").lower()
+            if ext in ("svg", "pbm", "png", "tif", "tiff"):
+                fmt = ext
+
+        potrace_args = a.potrace_args.split() if a.potrace_args else None
+
         for tag, gray in pages:
             bw = binarize(gray, a, dpi)
 
@@ -525,8 +583,8 @@ def main():
                 d = Path(a.outdir) if a.outdir else path.parent
                 d.mkdir(parents=True, exist_ok=True)
                 base = Path(a.output).stem if (a.output and len(paths) == 1) else path.stem
-                out = d / f"{base}{tag}{a.suffix}.{a.format}"
-            save_bilevel(bw, out, dpi, a.format)
+                out = d / f"{base}{tag}{a.suffix}.{fmt}"
+            save_bilevel(bw, out, dpi, fmt, potrace_args=potrace_args)
             ink = float((bw == 0).mean() * 100)
             ncc = cv2.connectedComponents((bw == 0).astype(np.uint8), 8)[0] - 1
             print(f"{path.name}{tag} -> {out}  {bw.shape[1]}x{bw.shape[0]} "
@@ -538,8 +596,9 @@ def main():
                 line, tone = split_layers(bw, a.max_dot_area * sc * sc)
                 for lt, img in (("_line", line), ("_tone", tone)):
                     lp = out.with_name(out.stem + lt + out.suffix)
-                    save_bilevel(img, lp, dpi, a.format)
+                    save_bilevel(img, lp, dpi, fmt, potrace_args=potrace_args)
                     print(f"   {lt[1:]}: {lp}")
+
 
 
 if __name__ == "__main__":

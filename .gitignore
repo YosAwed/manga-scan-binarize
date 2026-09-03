@@ -19,8 +19,10 @@ cmp.png
 test_*.png
 *.svg
 
-# サンプル画像はコミット対象
+# サンプル画像・ベクターはコミット対象
 !samples/*.jpg
+!samples/*.svg
+
 
 
 # ビルド・パッケージング成果物

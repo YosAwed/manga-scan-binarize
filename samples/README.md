@@ -18,17 +18,26 @@
    - `--split`（自動見開き分割）および `--trim`（白余白トリム）のテスト用
 
 3. **`make_samples.py`**
-   - 上記2枚の画像をいつでも再生成できるPythonスクリプト。
+   - 上記の画像をいつでも再生成できるPythonスクリプト。
+
+4. **`sample_page.svg`** (ベクター化サンプル / SVG)
+   - `sample_page.jpg` を本ツールで2値化し、potrace で自動ベクター化した出力サンプル。
+   - 網点や細線、コマ枠が美しいベクターパスとして保持されていることを確認できます。
+
 
 ## お試しコマンド例
 
 ```sh
-# 単ページの2値化
+# 単ページを直接 SVG にベクター化（potrace 自動連携）
+./mb samples/sample_page.jpg -o out.svg --dpi 600 --round-dots
+
+# 単ページの2値化（1-bit PNG）
 ./mb samples/sample_page.jpg -o out.png --dpi 600
 
 # 設定の効き比べシートを作成
 ./mb samples/sample_page.jpg --compare cmp.png
 
-# 見開きを2ページに分割し、余白を落として potrace 向け PBM 形式で出力
-./mb samples/sample_spread.jpg -O out/ --split --trim --format pbm
+# 見開きを2ページに分割し、余白を落として直接 SVG で出力
+./mb samples/sample_spread.jpg -O out/ --split --trim --svg --round-dots
 ```
+

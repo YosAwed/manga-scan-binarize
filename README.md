@@ -14,20 +14,23 @@ potrace や Adobe Illustrator による画像トレース（ベクター化）�
 
 ## 🌟 特徴
 
+- **potrace 連携による直接ベクター化（SVG出力対応）**  
+  `-o out.svg` や `--svg` を指定するだけで、内部で `potrace` を自動実行して一発でベクター化。アンカー数を削減する最適化パラメータ（`-s -t 2 -a 1.3 -O 0.4`）が標準適用されます。
 - **網点（スクリーントーン）の忠実な保持**  
   大域 Otsu しきい値と多項式補正により、トーンの濃度（15%、35%、60%等）を原画とほぼ同一のパーセンテージで再現。
 - **革新的な多項式フィッティングによる地色補正 (`--bg-mode fit`)**  
   一般的なモルフォロジー（クロージング）による背景推定で発生する「広いトーン面の中央が紙と誤認されて白く飛ぶ」問題を完全に解消。
 - **見開き自動分割 & 白余白トリミング (`--split`, `--trim`)**  
   見開き中央の綴じ目（gutter）を自動検出し、日本の漫画の読み順に合わせて右ページ（`_r`）と左ページ（`_l`）へ自動分割。
-- **potrace / ベクター化への徹底的な最適化**  
-  potrace がネイティブ入力できる 1-bit PBM 形式や FAX G4 圧縮 TIFF に対応。`--round-dots` による 1px トゲ除去で、ベクター化後のアンカー数を大幅削減。
+- **ベクター化への徹底的な最適化**  
+  potrace がネイティブ入力できる 1-bit PBM 形式や直接 SVG、FAX G4 圧縮 TIFF に対応。`--round-dots` による 1px トゲ除去で、ベクター化後のアンカー数を大幅削減。
 - **低解像度・ボケ原稿向けハイブリッドディザ (`--tone auto`)**  
   300dpi などの低解像度で網点がグレーに潰れている箇所を局所分散で自動検知し、エッジを守りつつ Floyd-Steinberg 誤差拡散で打ち直してモアレを防止。
 - **線画とトーンのレイヤー分離 (`--layers`)**  
   連結成分の幾何学的特徴から、主線（線画）と独立した網点（トーン）を別々の画像ファイルに分離出力。
 - **一発比較シート生成 (`--compare`)**  
   主要な8通りのパラメータ設定をタイル状に並べた比較シートを1秒で生成。最適なパラメータが即座に判明。
+
 
 ---
 
@@ -82,11 +85,14 @@ manga-binarize --help
 リポジトリ内の `samples/` ディレクトリに、著作権フリーな人工漫画スキャン画像が同梱されています。クローン後すぐに動作を確認できます：
 
 ```sh
-# 単ページの2値化
+# 1コマンドで直接 SVG にベクター化（potrace 自動連携）
+./mb samples/sample_page.jpg -o out.svg --dpi 600 --round-dots
+
+# 単ページの2値化（1-bit PNG 出力）
 ./mb samples/sample_page.jpg -o out.png --dpi 600
 
-# 見開き画像を左右2ページに自動分割 & 白余白トリム
-./mb samples/sample_spread.jpg -O out/ --split --trim --dpi 600
+# 見開き画像を左右2ページに自動分割 & 白余白トリムして SVG 出力
+./mb samples/sample_spread.jpg -O out/ --split --trim --svg --round-dots
 
 # 設定の効き比べシート（8種類）をタイル状に生成
 ./mb samples/sample_page.jpg --compare cmp.png
@@ -114,15 +120,29 @@ manga-binarize --help
 ./mb 原稿.tif --compare cmp.png
 ```
 
-### 5. potrace と連携して超軽量・美麗な SVG を作成する（最強パイプライン）
-potrace は PNG を読めないため、`--format pbm` で直接出力します。
+### 5. potrace と連携して超軽量・美麗な SVG を作成する（ベクター化）
+
+#### 方法 A: 1コマンドで直接 SVG 出力（推奨）
+拡張子 `.svg` を指定するか、`--svg` を付与すると、内部で `potrace` を自動呼び出して直接 SVG を出力します。  
+ベクター化に最適化された軽量パラメータ（`-s -t 2 -a 1.3 -O 0.4`）が自動適用されます。
+```sh
+# 単ページをベクター化
+./mb 原稿.jpg -o 原稿.svg --dpi 600 --round-dots
+
+# 見開きを2分割＋トリム＋一括で SVG にベクター化
+./mb 見開き.jpg -O out/ --split --trim --svg --round-dots
+```
+
+#### 方法 B: 手動で potrace を実行する場合（PBM 経由）
+potrace は PNG を読めないため、`--format pbm` で出力してからパイプラインを組みます。
 ```sh
 # 1. 2値化 & PBM 出力 & トゲ丸めによるアンカー削減
 ./mb 原稿.jpg -O out/ --split --trim --round-dots --format pbm
 
-# 2. potrace でベクター化（推奨パラメータ）
+# 2. potrace でベクター化
 potrace -s -t 2 -a 1.3 -O 0.4 out/原稿_r_bw.pbm -o out/原稿_r.svg
 ```
+
 
 ### 6. Adobe Illustrator で画像トレースする場合
 2値化済み PNG を出力し、Illustrator 上で設定します：
@@ -230,11 +250,14 @@ Illustrator などの画像トレースをスキャン原画に対して「グ�
 |---|---|---|
 | **入出力関連** | | |
 | `inputs` | (必須) | 入力画像パス（ワイルドカード `scans/*.tif` 対応、日本語パス対応） |
-| `-o, --output` | None | 出力ファイル名（入力が1枚のとき有効） |
+| `-o, --output` | None | 出力ファイル名（入力が1枚のとき有効。拡張子 `.svg` で自動ベクター化） |
 | `-O, --outdir` | 同階層 | 出力先ディレクトリ |
 | `--suffix` | `_bw` | 出力ファイル名に付与する接尾辞 |
-| `--format` | `png` | 出力形式: `png`, `tif` (G4圧縮), `pbm` (potrace直接入力用) |
+| `--format` | `png` | 出力形式: `png`, `tif` (G4圧縮), `pbm` (potrace入力用), `svg` (potrace連携) |
+| `--svg` | false | 直接 SVG 形式でベクター出力する（potrace を自動実行） |
+| `--potrace-args` | None | potrace に渡す追加引数文字列（例: `"-t 3 -a 1.0 -O 0.2"`） |
 | `--dpi` | 自動/600 | 解像度(dpi)。指定値に応じて全パラメータのピクセル窓サイズが自動スケール |
+
 | **レイアウト補正** | | |
 | `--split` | false | 見開き画像を綴じ目で検出して右（`_r`）・左（`_l`）2ページに自動分割 |
 | `--trim` | false | 周囲の余白（白地）をインク存在領域で自動カット |
@@ -275,7 +298,8 @@ Illustrator などの画像トレースをスキャン原画に対して「グ�
 1. **Screentone Preservation**: Keeps halftone dots intact without losing tint densities.
 2. **Robust Polynomial Surface Illumination Correction**: Replaces traditional morphological closing with a 2D polynomial surface fit on bright pixels, completely solving the notorious issue of large tone areas being washed out as paper background.
 3. **Manga Spread Splitting & Auto-Trimming**: Automatically locates gutter whitespace to split spreads in Japanese reading order (Right page `_r` followed by Left page `_l`), with automatic margin trimming.
-4. **Vectorization-Ready Outputs**: Direct output of 1-bit PBM (potrace native), CCITT Group 4 TIFF, and 1-bit PNG. Includes `--round-dots` to eliminate single-pixel spikes and reduce potrace anchor counts by up to 65%.
+4. **Direct Vectorization (SVG Output)**: Integrated with `potrace` to directly generate optimized SVG files in a single step (`-o out.svg` or `--svg`). Automatically applies recommended anchor-reduction parameters (`-s -t 2 -a 1.3 -O 0.4`).
+5. **Vectorization-Ready Outputs**: Supports direct SVG, 1-bit PBM, CCITT Group 4 TIFF, and 1-bit PNG. Includes `--round-dots` to eliminate single-pixel spikes and reduce potrace anchor counts by up to 65%.
 
 ### Quick Usage
 
@@ -285,12 +309,11 @@ git clone https://github.com/YosAwed/manga-scan-binarize.git
 cd manga-scan-binarize
 python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
 
-# Try with bundled royalty-free sample images:
-./mb samples/sample_page.jpg -o out.png --dpi 600
-./mb samples/sample_spread.jpg -O out/ --split --trim --round-dots --format pbm
+# Directly vectorize to SVG in a single command (with bundled sample):
+./mb samples/sample_page.jpg -o out.svg --dpi 600 --round-dots
 
-# Vectorize with potrace:
-potrace -s -t 2 -a 1.3 -O 0.4 out/sample_spread_r_bw.pbm -o out/sample_spread_r.svg
+# Split a spread, trim margins, and output SVG:
+./mb samples/sample_spread.jpg -O out/ --split --trim --svg --round-dots
 ```
 
 ---
